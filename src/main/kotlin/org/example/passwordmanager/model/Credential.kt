@@ -1,9 +1,6 @@
 package org.example.passwordmanager.model
 
-import jakarta.persistence.Entity
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
+import jakarta.persistence.*
 
 @Entity
 data class Credential(
@@ -14,5 +11,11 @@ data class Credential(
     val service: String,
     val username: String,
 
-    val encryptedPassword: String
+    val encryptedPassword: String,
+
+    val salt: String,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    var user: User? = null
 )
