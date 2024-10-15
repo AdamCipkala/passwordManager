@@ -1,15 +1,79 @@
 package org.example.passwordmanager.cli
 
+import org.example.passwordmanager.model.User
 import org.example.passwordmanager.service.CredentialService
+import org.example.passwordmanager.service.UserService
+import org.example.passwordmanager.util.PasswordGeneratorUtil
 import org.springframework.boot.CommandLineRunner
 import org.springframework.stereotype.Component
 import java.util.*
 
 @Component
-class CredentialCLI(private val credentialService: CredentialService) : CommandLineRunner {
+class CredentialCLI(
+    private val credentialService: CredentialService,
+    private val userService: UserService
+) : CommandLineRunner {
     override fun run(vararg args: String?) {
         val scanner = Scanner(System.`in`)
-        val console = System.console()
+
+        var user: User?
+        var masterPassword: String
+
+        println("Welcome to your Password Manager!")
+        println("Do you want to (1) Log in or (2) Create an account? (Enter 1 or 2)")
+
+        when (scanner.nextLine()) {
+            "1" -> {
+                print("Enter your username: ")
+                val username = scanner.nextLine()
+
+                user = userService.getUserByUsername(username)
+                if (user == null) {
+                    println("No account found for $username. Exiting.")
+                    return
+                }
+
+                println("Enter your master password:")
+                masterPassword = scanner.nextLine()
+
+                if (!userService.verifyPassword(username, masterPassword)) {
+                    println("Incorrect master password. Exiting.")
+                    return
+                }
+
+                println("Login successful!")
+            }
+
+            "2" -> {
+                print("Enter a username: ")
+                val username = scanner.nextLine()
+
+                user = userService.getUserByUsername(username)
+                if (user != null) {
+                    println("An account already exists for $username. Exiting.")
+                    return
+                }
+
+                println("Enter a new master password:")
+                val newMasterPassword = scanner.nextLine()
+
+                if (newMasterPassword.isBlank()) {
+                    println("Master password cannot be empty. Exiting.")
+                    return
+                }
+
+                user = userService.createUser(username, newMasterPassword)
+                masterPassword = newMasterPassword
+                println("Account created successfully!")
+            }
+
+            else -> {
+                println("Invalid option. Exiting.")
+                return
+            }
+        }
+
+        println("Welcome to your Password Manager!")
         println("Welcome to your Password Manager!")
         loop@ while (true) {
             println("Choose an option:")
@@ -27,20 +91,33 @@ class CredentialCLI(private val credentialService: CredentialService) : CommandL
                     print("Enter the username: ")
                     val username = scanner.nextLine()
 
-                    val password: String = if (console != null) {
-                        print("Enter the password: ")
-                        String(console.readPassword())
-                    } else {
+                    println("Do you want to (1) generate a strong password or (2) input a password manually? (Enter 1 or 2)")
+                    val password: String = when (scanner.nextLine()) {
+                        "1" -> {
+                            val generatedPassword = PasswordGeneratorUtil.generatePassword()
+                            println("Generated strong password: $generatedPassword")
+                            generatedPassword
+                        }
 
-                        println("Enter the password (warning: input will be visible):")
-                        scanner.nextLine()
+                        "2" -> {
+                            println("Enter the password: ")
+                            scanner.nextLine()
+                        }
+
+                        else -> {
+                            println("Invalid option. Defaulting to generating a strong password.")
+                            val generatedPassword = PasswordGeneratorUtil.generatePassword()
+                            println("Generated strong password: $generatedPassword")
+                            generatedPassword
+                        }
                     }
 
-                    credentialService.saveCredential(service, username, password)
+                    credentialService.saveCredential(service, username, password, masterPassword, user)
                     println("Credential saved successfully!")
                 }
+
                 "2" -> {
-                    val credentials = credentialService.getAllCredentials()
+                    val credentials = credentialService.getAllUserCredentials(user)
                     if (credentials.isNotEmpty()) {
                         credentials.forEach {
                             println("ID: ${it.id}, Service: ${it.service}, Username: ${it.username}")
@@ -49,22 +126,29 @@ class CredentialCLI(private val credentialService: CredentialService) : CommandL
                         println("No credentials stored.")
                     }
                 }
+
                 "3" -> {
                     print("Enter the ID of the credential to view the password: ")
                     val id = scanner.nextLine().toLongOrNull()
                     id?.let {
-                        val password = credentialService.getDecryptedPassword(it)
-                        println("Password: $password")
+                        val password = credentialService.getDecryptedPassword(it, masterPassword, user)
+                        if (password != null) {
+                            println("Password: $password")
+                        } else {
+                            println("Incorrect master password.")
+                        }
                     } ?: println("Invalid ID.")
                 }
+
                 "4" -> {
                     print("Enter the ID of the credential to delete: ")
                     val id = scanner.nextLine().toLongOrNull()
                     id?.let {
-                        credentialService.deleteCredential(it)
+                        credentialService.deleteCredential(it, user)
                         println("Credential deleted.")
                     } ?: println("Invalid ID.")
                 }
+
                 "5" -> break@loop
                 else -> println("Invalid option. Please choose a valid action.")
             }
