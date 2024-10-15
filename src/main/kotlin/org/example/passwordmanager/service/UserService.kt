@@ -13,7 +13,7 @@ class UserService(private val userRepository: UserRepository) {
         return userRepository.findByUsername(username)
     }
 
-    fun createUser(username: String, masterPassword: String) {
+    fun createUser(username: String, masterPassword: String): User {
         val salt = generateSalt()
         val hashedPassword = EncryptionUtil.hashPassword(masterPassword, salt)
 
@@ -22,7 +22,7 @@ class UserService(private val userRepository: UserRepository) {
             hashedPassword = hashedPassword,
             salt = Base64.getEncoder().encodeToString(salt)
         )
-        userRepository.save(user)
+        return userRepository.save(user)
     }
 
     fun verifyPassword(username: String, masterPassword: String): Boolean {
